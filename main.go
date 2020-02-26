@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+const (
+	GroupField    = 1
+	TitleField    = 2
+	URLField      = 3
+	UserField     = 4
+	PasswordField = 5
+	NotesField    = 6
+)
+
 type Password struct {
 	group    string // optional
 	title    string // mandatory
@@ -31,10 +40,28 @@ func readFile(file string) string {
 func parseDbG(data string) []Password {
 	lines := strings.Split(data, "\n")
 
+	// Remove last line if empty
+	if "" == lines[len(lines) - 1] {
+		lines = lines[:len(lines) - 1]
+	}
+
 	nbOfPassword := len(lines) - 1
 	passwordList := make([]Password, nbOfPassword)
 
-	fmt.Println(lines[0])
+	for i := 0; i < nbOfPassword; i++ {
+		passwordFields := strings.Split(lines[i+1], ",")
+
+		if len(passwordFields) >= 6 {
+			passwordList[i] = Password{
+				group:    passwordFields[GroupField],
+				title:    passwordFields[TitleField],
+				url:      passwordFields[URLField],
+				user:     passwordFields[UserField],
+				password: passwordFields[PasswordField],
+				notes:    passwordFields[NotesField],
+			}
+		}
+	}
 
 	return passwordList
 }
@@ -48,5 +75,5 @@ func main() {
 
 	data := readFile(args[0])
 
-	parseDbG(data)
+	fmt.Println(parseDbG(data))
 }
