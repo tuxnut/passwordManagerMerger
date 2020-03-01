@@ -1,19 +1,32 @@
 package main
 
 import (
+	"bufio"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 )
 
 const (
-	GroupField    = 1
-	TitleField    = 2
-	URLField      = 3
-	UserField     = 4
-	PasswordField = 5
-	NotesField    = 6
+	TextGroupField    = 1
+	TextTitleField    = 2
+	TextURLField      = 3
+	TextUserField     = 4
+	TextPasswordField = 5
+	TextNotesField    = 6
+)
+
+const (
+	CSVTitleField    = 0
+	CSVCategoryField = 1
+	CSVUserField     = 2
+	CSVPasswordField = 3
+	CSVURLField      = 4
+	CSVCommentsField = 5
 )
 
 type Password struct {
@@ -31,39 +44,81 @@ func check(e error) {
 	}
 }
 
-func readFile(file string) string {
-	content, err := ioutil.ReadFile("./pc_pwd_db.txt")
+func readTextFile(file string) []string {
+	content, err := ioutil.ReadFile(file)
 	check(err)
-	return string(content)
+	return strings.Split(string(content), "\n")
 }
 
-func parseDbG(data string) []Password {
-	lines := strings.Split(data, "\n")
-
+func parseDbG(dataLines []string) []Password {
 	// Remove last line if empty
-	if "" == lines[len(lines) - 1] {
-		lines = lines[:len(lines) - 1]
+	if "" == dataLines[len(dataLines)-1] {
+		dataLines = dataLines[:len(dataLines)-1]
 	}
 
-	nbOfPassword := len(lines) - 1
+	nbOfPassword := len(dataLines) - 1
 	passwordList := make([]Password, nbOfPassword)
 
 	for i := 0; i < nbOfPassword; i++ {
-		passwordFields := strings.Split(lines[i+1], ",")
+		passwordFields := strings.Split(dataLines[i+1], ",")
 
-		if len(passwordFields) >= 6 {
+		if len(passwordFields) >= TextNotesField {
 			passwordList[i] = Password{
-				group:    passwordFields[GroupField],
-				title:    passwordFields[TitleField],
-				url:      passwordFields[URLField],
-				user:     passwordFields[UserField],
-				password: passwordFields[PasswordField],
-				notes:    passwordFields[NotesField],
+				group:    passwordFields[TextGroupField],
+				title:    passwordFields[TextTitleField],
+				url:      passwordFields[TextURLField],
+				user:     passwordFields[TextUserField],
+				password: passwordFields[TextPasswordField],
+				notes:    passwordFields[TextNotesField],
 			}
 		}
 	}
 
 	return passwordList
+}
+
+func parseCSVFile(file string) []Password {
+	csvFile, _ := os.Open(file)
+	reader := csv.NewReader(bufio.NewReader(csvFile))
+	var passwordList []Password
+	for {
+		passwordFields, error := reader.Read()
+		if error == io.EOF {
+			break
+		} else if error != nil {
+			log.Fatal(error)
+		}
+		passwordList = append(passwordList, Password{
+			title:    passwordFields[CSVTitleField],
+			group:    passwordFields[CSVCategoryField],
+			user:     passwordFields[CSVUserField],
+			password: passwordFields[CSVPasswordField],
+			url:      passwordFields[CSVURLField],
+			notes:    passwordFields[CSVCommentsField],
+		})
+	}
+
+	return passwordList
+}
+
+func compare(left, right Password) bool {
+	return left.title == right.title &&
+		left.user == right.user &&
+		left.password == right.password
+}
+
+func retrieveDuplicates(left, right []Password) []Password {
+	var duplicates []Password
+	for i := 0; i < len(left); i++ {
+		currPassword := left[i]
+
+		for j := 0; j < len(right); j++ {
+			if compare(currPassword, right[j]) {
+				duplicates = append(duplicates, currPassword)
+			}
+		}
+	}
+	return duplicates
 }
 
 func main() {
@@ -73,7 +128,29 @@ func main() {
 		panic(nil)
 	}
 
-	data := readFile(args[0])
+	var passwordList [][]Password
 
-	fmt.Println(parseDbG(data))
+	for i := 0; i < len(args); i++ {
+		if strings.HasSuffix(args[i], "txt") {
+			dataLines := readTextFile(args[i])
+			passwordList = append(passwordList, parseDbG(dataLines))
+
+			// for j := 0; j < len(passwordList[i]); j++ {
+			// 	fmt.Println(passwordList[i][j].title)
+			// }
+		} else if strings.HasSuffix(args[i], "csv") {
+			passwordList = append(passwordList, parseCSVFile(args[i]))
+
+			// for j := 0; j < len(passwordList[i]); j++ {
+			// 	fmt.Println(passwordList[i][j].title)
+			// }
+		}
+	}
+
+	duplicates := retrieveDuplicates(passwordList[0], passwordList[1])
+
+	fmt.Println(len(duplicates))
+	for i := 0; i < len(duplicates); i++ {
+		fmt.Println(duplicates[i].title)
+	}
 }
